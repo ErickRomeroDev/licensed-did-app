@@ -1,6 +1,5 @@
 node_modules/
 dist/
-contract/src/managed/
 web/public/midnight/
 web/.cache/
 web/e2e/artifacts/
