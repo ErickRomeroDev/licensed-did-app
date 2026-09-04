@@ -1,5 +1,7 @@
 # Licensed — private, revocable professional licences on `did:midnight`
 
+**Live demo:** [licensed.eddalabs.io](https://licensed.eddalabs.io/) — see [Run against preprod with the 1AM wallet](#run-against-preprod-with-the-1am-wallet) for what you need to try it.
+
 A browser-only demonstration built on the [Midnight DID reference implementation](https://github.com/midnightntwrk/midnight-did):
 
 - a **licensing board** creates its own `did:midnight` identity and a licence registry from its browser and issues a
