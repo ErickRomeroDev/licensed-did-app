@@ -29,9 +29,12 @@ jobs:
       - name: Install the Compact developer tools and pin the compiler
         run: |
           curl --proto '=https' --tlsv1.2 -LsSf https://github.com/midnightntwrk/compact/releases/latest/download/compact-installer.sh | sh
+          # The installer's location moved from ~/.compact/bin to ~/.local/bin; keep both on PATH.
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           echo "$HOME/.compact/bin" >> "$GITHUB_PATH"
-          "$HOME/.compact/bin/compact" update "$COMPACT_COMPILER_VERSION"
-          "$HOME/.compact/bin/compact" compile "+$COMPACT_COMPILER_VERSION" --version
+          export PATH="$HOME/.local/bin:$HOME/.compact/bin:$PATH"
+          compact update "$COMPACT_COMPILER_VERSION"
+          compact compile "+$COMPACT_COMPILER_VERSION" --version
 
       - run: pnpm install --frozen-lockfile
 
