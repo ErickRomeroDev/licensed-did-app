@@ -1,0 +1,12 @@
+packages:
+  - contract
+  - shared
+  - web
+  - deploy
+onlyBuiltDependencies:
+  - esbuild
+  - "@midnight-ntwrk/compact-runtime"
+  - level
+  - classic-level
+  - protobufjs
+  - msgpackr-extract

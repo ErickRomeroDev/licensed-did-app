@@ -1,0 +1,208 @@
+// LicenseRegistry — revocable, privacy-preserving status registry for
+// professional-license credentials issued by one did:midnight issuer.
+// SPDX-License-Identifier: Apache-2.0
+pragma language_version >= 0.20;
+
+import CompactStandardLibrary;
+import "./schnorr" prefix Schnorr_;
+
+export { Schnorr_SchnorrSignature };
+
+// ---------------------------------------------------------------------------
+// Vocabulary aligned with @midnight-ntwrk/credential-compact (0.1.0-rc3)
+// ---------------------------------------------------------------------------
+export struct VerificationMethodRef {
+  didContractAddress: ContractAddress,
+  methodId: Bytes<32>,
+}
+
+export struct StatusRegistryRef {
+  registryId: Bytes<32>,
+  authorityVerificationMethodRef: VerificationMethodRef,
+}
+
+export enum StatusType { none, revocationRegistry }
+
+export struct RegistryBoundStatusBinding {
+  statusType: StatusType,
+  registryRef: StatusRegistryRef,
+  statusHandleCommitment: Bytes<32>,
+}
+
+export struct HolderKeyBinding {
+  holderPublicKey: JubjubPoint,
+}
+
+// ---------------------------------------------------------------------------
+// Professional-license credential family (edda:vc:professional-license:v1)
+// ---------------------------------------------------------------------------
+export struct LicenseClaims {
+  category: Uint<8>,        // 1 electrician, 2 plumber, 3 gas fitter, ...
+  jurisdiction: Bytes<32>,  // pad(32, "CA")
+  licenseNumber: Bytes<32>,
+  holderName: Bytes<64>,
+  issuedAtDay: Uint<32>,    // days since Unix epoch
+  expiresAtDay: Uint<32>,
+}
+
+export struct LicenseCredential {
+  version: Uint<16>,
+  schemaId: Bytes<32>,
+  issuer: VerificationMethodRef,
+  holderBinding: HolderKeyBinding,
+  statusBinding: RegistryBoundStatusBinding,
+  issuedAt: Uint<64>,
+  claimsCommitment: Bytes<32>,
+}
+
+export struct PresentationRequest {
+  challenge: Bytes<32>,
+  requiredCategory: Uint<8>,
+  currentDay: Uint<32>,
+}
+
+export struct VerificationRecord {
+  category: Uint<8>,
+  currentDay: Uint<32>,
+}
+
+struct DomainTag {
+  domain: Bytes<32>,
+}
+
+// ---------------------------------------------------------------------------
+// Ledger
+// ---------------------------------------------------------------------------
+export sealed ledger issuerPublicKey: JubjubPoint;
+export sealed ledger issuerDidContract: ContractAddress;
+export sealed ledger issuerMethodId: Bytes<32>;
+export sealed ledger registryId: Bytes<32>;
+export ledger activeLicenses: MerkleTree<8, Bytes<32>>;
+export ledger issuedCount: Counter;
+export ledger revokedCount: Counter;
+export ledger verifications: Map<Bytes<32>, VerificationRecord>;
+
+witness issuerSecretKey(): Field;
+
+constructor(issuerDid: ContractAddress, methodId: Bytes<32>) {
+  issuerPublicKey = disclose(ecMulGenerator(issuerSecretKey()));
+  issuerDidContract = disclose(issuerDid);
+  issuerMethodId = disclose(methodId);
+  registryId = persistentHash<ContractAddress>(kernel.self());
+}
+
+// ---------------------------------------------------------------------------
+// Digests (also exported as pure circuits so TS reuses the exact hashing)
+// ---------------------------------------------------------------------------
+export pure circuit credentialDigest(credential: LicenseCredential): Vector<4, Field> {
+  return [
+    transientHash<DomainTag>(DomainTag { domain: pad(32, "edda:vc:license:issue:v1") }),
+    transientHash<Bytes<32>>(credential.statusBinding.registryRef.registryId),
+    transientHash<LicenseCredential>(credential),
+    0 as Field,
+  ];
+}
+
+export pure circuit presentationDigest(
+  request: PresentationRequest,
+  registry: Bytes<32>
+): Vector<4, Field> {
+  return [
+    transientHash<DomainTag>(DomainTag { domain: pad(32, "edda:vc:license:present:v1") }),
+    transientHash<Bytes<32>>(registry),
+    transientHash<PresentationRequest>(request),
+    0 as Field,
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// Commitments (exported so TypeScript reuses the exact hashing)
+// ---------------------------------------------------------------------------
+export pure circuit claimsCommitment(claims: LicenseClaims, opening: Bytes<32>): Bytes<32> {
+  return persistentCommit<LicenseClaims>(claims, opening);
+}
+
+export pure circuit statusHandleCommitment(random: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "edda:vc:license:status:v1"), random]);
+}
+
+// ---------------------------------------------------------------------------
+// Issuer authorization: zero-knowledge proof of knowledge of the issuer key
+// ---------------------------------------------------------------------------
+circuit assertIssuer(): [] {
+  const pk = ecMulGenerator(issuerSecretKey());
+  assert(disclose(jubjubPointX(pk) == jubjubPointX(issuerPublicKey)), "Not the registry issuer");
+  assert(disclose(jubjubPointY(pk) == jubjubPointY(issuerPublicKey)), "Not the registry issuer");
+}
+
+// ---------------------------------------------------------------------------
+// Lifecycle circuits
+// ---------------------------------------------------------------------------
+export circuit issue(statusHandleCommitment: Bytes<32>): [] {
+  assertIssuer();
+  assert(!activeLicenses.isFull(), "Registry is full");
+  activeLicenses.insert(disclose(statusHandleCommitment));
+  issuedCount.increment(1);
+}
+
+export circuit revoke(index: Uint<64>): [] {
+  assertIssuer();
+  activeLicenses.insertIndexDefault(disclose(index));
+  revokedCount.increment(1);
+}
+
+export circuit present(
+  credential: LicenseCredential,
+  issuerSignature: Schnorr_SchnorrSignature,
+  claims: LicenseClaims,
+  claimsOpening: Bytes<32>,
+  statusPath: MerkleTreePath<8, Bytes<32>>,
+  holderSignature: Schnorr_SchnorrSignature,
+  request: PresentationRequest
+): [] {
+  // 1. The credential is bound to this registry and its issuer.
+  assert(credential.version == 1, "Unsupported credential version");
+  assert(credential.schemaId == pad(32, "edda:vc:professional-license:v1"), "Unknown credential schema");
+  assert(credential.issuer.didContractAddress.bytes == issuerDidContract.bytes, "Issuer DID mismatch");
+  assert(credential.issuer.methodId == issuerMethodId, "Issuer method mismatch");
+  assert(credential.statusBinding.statusType == StatusType.revocationRegistry, "Unsupported status type");
+  assert(credential.statusBinding.registryRef.registryId == registryId, "Registry mismatch");
+
+  // 2. The issuer really signed this credential (Jubjub Schnorr, in-circuit).
+  Schnorr_schnorrVerifyDigest(credentialDigest(credential), issuerSignature, issuerPublicKey);
+
+  // 3. The private claims open the committed claims.
+  assert(
+    claimsCommitment(claims, claimsOpening) == credential.claimsCommitment,
+    "Claims do not open the credential commitment"
+  );
+
+  // 4. The predicate the verifier asked for.
+  assert(claims.category == request.requiredCategory, "License category does not satisfy request");
+  assert(claims.expiresAtDay > request.currentDay, "License expired");
+
+  // 5. Status: the credential's handle is still a leaf of the active set.
+  assert(statusPath.leaf == credential.statusBinding.statusHandleCommitment, "Status path is for another credential");
+  assert(
+    activeLicenses.checkRoot(disclose(merkleTreePathRoot<8, Bytes<32>>(statusPath))),
+    "License is revoked or unknown"
+  );
+
+  // 6. Holder binding: the presenter controls the key bound into the credential.
+  Schnorr_schnorrVerifyDigest(
+    presentationDigest(request, registryId),
+    holderSignature,
+    credential.holderBinding.holderPublicKey
+  );
+
+  // 7. Record the outcome for the verifier; one answer per challenge.
+  const challenge = disclose(request.challenge);
+  assert(!verifications.member(challenge), "Challenge already answered");
+  verifications.insert(
+    challenge,
+    VerificationRecord {
+      category: disclose(request.requiredCategory),
+      currentDay: disclose(request.currentDay),
+    }
+  );
+}

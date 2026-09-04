@@ -1,0 +1,19 @@
+{
+  "name": "licensed-did-midnight",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "author": "Erick Romero (https://x.com/ErickRomeroEdda)",
+  "description": "Licensed — private, revocable professional-license credentials on did:midnight",
+  "packageManager": "pnpm@10.14.0",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "compact": "pnpm --filter @licensed/contract compact",
+    "build": "pnpm -r build",
+    "test": "pnpm -r --filter='!@licensed/deploy' test",
+    "test:integration": "pnpm --filter @licensed/deploy test",
+    "e2e": "pnpm --filter @licensed/web e2e",
+    "standalone:up": "docker compose -f infra/standalone.yml up -d",
+    "standalone:down": "docker compose -f infra/standalone.yml down -v"
+  }
+}

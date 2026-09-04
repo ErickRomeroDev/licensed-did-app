@@ -1,0 +1,12 @@
+node_modules/
+dist/
+contract/src/managed/
+web/public/midnight/
+web/.cache/
+web/e2e/artifacts/
+web/playwright-report/
+web/test-results/
+deploy/.state/
+*.log
+.env
+.cache/

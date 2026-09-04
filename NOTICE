@@ -1,0 +1,15 @@
+Licensed — private, revocable professional-license credentials on did:midnight
+Copyright 2026 EDDA Labs
+
+This product includes software developed by the Midnight Foundation:
+
+  contract/src/schnorr.compact is vendored verbatim from
+  https://github.com/midnightntwrk/midnight-did (packages/jubjub-schnorr/src/schnorr.compact),
+  Copyright (C) 2025 Midnight Foundation, licensed under the Apache License, Version 2.0.
+
+  web/src/dev/transaction-intents.ts follows the pattern of
+  midnight-did/packages/api/src/transaction-intents.ts (Apache License, Version 2.0).
+
+The did:midnight contract, resolver, domain model and Jubjub Schnorr signer are consumed as the published
+npm packages @midnight-ntwrk/midnight-did-{contract,did,domain,jubjub-schnorr} 0.5.0 (Apache License, Version 2.0),
+and the did:midnight ZK artifacts are downloaded at build time from the midnight-did v0.5.0 GitHub release.

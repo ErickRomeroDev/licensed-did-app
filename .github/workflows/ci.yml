@@ -1,0 +1,51 @@
+# Clean-clone build: compiles the Compact contract with the pinned compiler, builds every package (including the
+# static web app with its ZK assets) and runs the network-free test suites. Integration and browser tests need a
+# local Midnight standalone stack and run from a developer machine (see README).
+name: ci
+
+on:
+  push:
+  pull_request:
+
+env:
+  COMPACT_COMPILER_VERSION: 0.31.1
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.14.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install the Compact developer tools and pin the compiler
+        run: |
+          curl --proto '=https' --tlsv1.2 -LsSf https://github.com/midnightntwrk/compact/releases/latest/download/compact-installer.sh | sh
+          echo "$HOME/.compact/bin" >> "$GITHUB_PATH"
+          "$HOME/.compact/bin/compact" update "$COMPACT_COMPILER_VERSION"
+          "$HOME/.compact/bin/compact" compile "+$COMPACT_COMPILER_VERSION" --version
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Compile the LicenseRegistry contract (full ZK build)
+        run: pnpm -r compact
+
+      - name: Build all packages (downloads and verifies the did:midnight ZK artifacts)
+        run: pnpm -r build
+
+      - name: Unit tests (simulator + shared, no network)
+        run: pnpm test
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+          retention-days: 7
