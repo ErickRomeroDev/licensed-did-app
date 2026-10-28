@@ -1,6 +1,6 @@
 # Licensed — private, revocable professional licences on `did:midnight`
 
-**Live demo:** [licensed.eddalabs.io](https://licensed.eddalabs.io/) — see [Run against preprod with the 1AM wallet](#run-against-preprod-with-the-1am-wallet) for what you need to try it.
+**Live demo:** [licensed.eddalabs.io](https://licensed.eddalabs.io/) — see [Run against preview with the 1AM wallet](#run-against-preview-with-the-1am-wallet) for what you need to try it.
 
 A browser-only demonstration built on the [Midnight DID reference implementation](https://github.com/midnightntwrk/midnight-did):
 
@@ -92,14 +92,18 @@ pnpm test:integration              # deploy/: the whole lifecycle in Node agains
 pnpm e2e                           # web/: the storyline in headless Chromium via Playwright (~2.5 min), screenshots in web/e2e/artifacts/
 ```
 
-## Run against preprod with the 1AM wallet
+## Run against preview with the 1AM wallet
 
-1. Install the [1AM wallet](https://1am.xyz) extension, create a wallet, switch it to **preprod**.
-2. Get test NIGHT from `https://faucet.preprod.midnight.network` (captcha). Wait until the wallet shows a **DUST**
+1. Install the [1AM wallet](https://1am.xyz) extension, create a wallet, switch it to **preview**.
+2. Get test NIGHT from `https://faucet.preview.midnight.network` (captcha). Wait until the wallet shows a **DUST**
    balance — DUST is the fee resource NIGHT generates after registration; first fees arrive within minutes.
-3. Serve `web/dist` from any static host (or `pnpm --filter @licensed/web preview`), open it, keep **Network = preprod**
+3. Serve `web/dist` from any static host (or `pnpm --filter @licensed/web preview`), open it, keep **Network = preview**
    in Settings, connect the wallet, and run the storyline above. One wallet can play every role on one machine;
    three browsers can exchange the DID, bundle and request strings by copy/paste or QR.
+
+The app targets **preview** (indexer `https://indexer.preview.midnight.network/api/v4/graphql`; node and prover come
+from the wallet's configuration). Preprod is no longer offered: its endpoints now need a Blockfrost project id, which a
+static app cannot keep secret. Settings saved on preprod are moved to preview on load.
 
 Proving goes through the wallet's proving provider (`getProvingProvider`; 1AM routes to its ProofStation). If a wallet
 version does not expose one, set a **local proof server URL** in Settings (`http://localhost:6300`, docker
@@ -112,7 +116,7 @@ version does not expose one, set a **local proof server URL** in Settings (`http
 ## Architecture and trust
 
 ```
- browser (static SPA)             1AM wallet (extension)              preprod
+ browser (static SPA)             1AM wallet (extension)              preview
  /board  board secrets ──────────► balance · sign · submit ──────────► Board DID contract (did:midnight)
  /wallet holder key, credential ─► getProvingProvider (proving) ─────► LicenseRegistry contract
  /verify challenges  ◄──────────── read-only indexer GraphQL ◄──────── public state

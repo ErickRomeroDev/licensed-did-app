@@ -10,7 +10,7 @@ const KEY = "licensed:settings:v1";
 export const isDevWalletBuild = (): boolean => import.meta.env.VITE_DEV_WALLET === "true";
 
 export const defaultSettings = (): Settings => ({
-  networkId: isDevWalletBuild() ? "undeployed" : "preprod",
+  networkId: isDevWalletBuild() ? "undeployed" : "preview",
   localProofServerUrl: "",
   boardName: "State Electrical Licensing Board",
 });
@@ -18,7 +18,11 @@ export const defaultSettings = (): Settings => ({
 export const loadSettings = (): Settings => {
   try {
     const raw = localStorage.getItem(KEY);
-    return raw ? { ...defaultSettings(), ...(JSON.parse(raw) as Partial<Settings>) } : defaultSettings();
+    if (!raw) return defaultSettings();
+    const stored = JSON.parse(raw) as Partial<Settings>;
+    // Preprod now needs a Blockfrost project id the static app cannot hold; move saved preprod settings to preview.
+    if (stored.networkId === "preprod") stored.networkId = "preview";
+    return { ...defaultSettings(), ...stored };
   } catch {
     return defaultSettings();
   }
