@@ -42,7 +42,6 @@ export const HomePage = () => {
         <h2 className="font-semibold">Settings</h2>
         <Field label="Network">
           <select className="input" value={settings.networkId} onChange={(e) => updateSettings({ networkId: e.target.value })} disabled={!!session}>
-            <option value="preprod">preprod</option>
             <option value="preview">preview</option>
             <option value="undeployed">undeployed (local standalone)</option>
           </select>
